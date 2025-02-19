@@ -49,6 +49,7 @@ import VDI as sm
 # For RRDD Plugin Registration
 from xmlrpc.client import ServerProxy, Transport
 from socket import socket, AF_UNIX, SOCK_STREAM
+import base64
 
 PLUGIN_TAP_PAUSE = "tapdisk-pause"
 
@@ -382,8 +383,7 @@ class TapCtl(object):
 
             if not key:
                 raise util.SMException("No key found with key hash {}".format(key_hash))
-            input = key
-            text_mode = False
+            input = base64.b64encode(key).decode('utf-8')
             args.append('-E')
 
         cls._pread(args=args, input=input, text_mode=text_mode)

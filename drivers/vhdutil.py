@@ -23,6 +23,7 @@ import zlib
 import re
 import xs_errors
 import time
+import base64
 
 MIN_VHD_SIZE = 2 * 1024 * 1024
 MAX_VHD_SIZE = 2040 * 1024 * 1024 * 1024
@@ -297,9 +298,18 @@ def getDepth(path):
     return depth
 
 
-def getBlockBitmap(path):
+def getBlockBitmap(path, base64_encoded=False):
+    """Get the block allocation bitmap for the VHD file"""
     cmd = [VHD_UTIL, "read", OPT_LOG_ERR, "-B", "-n", path]
-    text = ioretry(cmd, text=False)
+    text = ioretry(cmd, text=base64_encoded)
+
+    if text and base64_encoded:
+        try:
+            text = base64.b64decode(text.strip())
+        except Exception as e:
+            util.SMlog("Failed to decode base64 bitmap data: %s" % e)
+            return None
+
     return zlib.compress(text)
 
 

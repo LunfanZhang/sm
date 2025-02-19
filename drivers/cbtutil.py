@@ -20,6 +20,7 @@
 import util
 import uuid
 from constants import CBT_UTIL
+import base64
 
 
 def create_cbt_log(file_name, size):
@@ -79,12 +80,19 @@ def get_cbt_consistency(file_name):
     return bool(int(ret.strip()))
 
 
-def get_cbt_bitmap(file_name):
+def get_cbt_bitmap(file_name, base64_encoded=False):
     """Get bitmap field from log file"""
     cmd = [CBT_UTIL, "get", "-n", file_name, "-b"]
-    ret = _call_cbt_util(cmd, text=False)
-    # Do not strip the return string. It's a byte string and stripping
-    # it sometimes leads to loss of information
+    ret = _call_cbt_util(cmd, text=base64_encoded)
+
+    if ret and base64_encoded:
+        # Decode the base64 string back to bytes
+        try:
+            return base64.b64decode(ret.strip())
+        except Exception as e:
+            util.SMlog("Failed to decode base64 bitmap data: %s" % e)
+            return None
+
     return ret
 
 
