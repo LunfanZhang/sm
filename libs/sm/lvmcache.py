@@ -75,10 +75,7 @@ class LVMCache:
         #                    "b", "-o", "+lv_tags", self.vgPath])
         #text = util.pread2(cmd)
 
-        cmd = [lvutil.CMD_LVS, "--noheadings", "--units",
-                               "b", "-o", "+lv_tags", self.vgPath]
-
-        text = lvutil.cmd_lvm(cmd)
+        text = lvutil._checkLVTags(self.vgPath)
         self.lvs.clear()
         self.tags.clear()
         for line in text.split('\n'):

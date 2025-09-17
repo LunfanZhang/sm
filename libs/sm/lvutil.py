@@ -212,27 +212,47 @@ class LVInfo:
 
 def _checkVG(vgname):
     try:
-        cmd_lvm([CMD_VGS, "--readonly", vgname])
+        util.timeout_call(20, cmd_lvm, [CMD_VGS, "--readonly", vgname])
         return True
+    except util.TimeoutException:
+        util.SMlog("_checkVG: VG check for '%s' timed out after 20 second" % vgname)
+        return False
     except:
         return False
 
 
 def _checkPV(pvname):
     try:
-        cmd_lvm([CMD_PVS, pvname])
+        util.timeout_call(20, cmd_lvm, [CMD_PVS, pvname])
         return True
+    except util.TimeoutException:
+        util.SMlog("_checkPV: PV check for '%s' timed out after 20 second " % pvname)
+        return False
     except:
         return False
 
 
 def _checkLV(path):
     try:
-        cmd_lvm([CMD_LVDISPLAY, path])
+        util.timeout_call(20, cmd_lvm, [CMD_LVDISPLAY, path])
         return True
+    except util.TimeoutException:
+        util.SMlog("_checkLV: LV check for '%s' timed out after 20 second" % path)
+        return False
     except:
         return False
 
+def _checkLVTags(path):
+    cmd = [CMD_LVS, "--noheadings", "--units",
+                               "b", "-o", "+lv_tags", path]
+    try:
+        text = util.timeout_call(20, cmd_lvm, cmd)
+        return text
+    except util.TimeoutException:
+        util.SMlog(" _checkLVTags '%s' timed out after 20 second" % path)
+        return ""
+    except:
+        return ""
 
 def _getLVsize(path):
     try:
@@ -245,9 +265,8 @@ def _getLVsize(path):
 
 def _getVGstats(vgname):
     try:
-        text = cmd_lvm([CMD_VGS, "--noheadings", "--nosuffix",
-                        "--units", "b", vgname],
-                        pread_func=util.pread).split()
+        text = util.timeout_call(20, cmd_lvm, [CMD_VGS, "--noheadings", "--nosuffix",
+                        "--units", "b", vgname]).split()
         size = int(text[5])
         freespace = int(text[6])
         utilisation = size - freespace
@@ -256,6 +275,10 @@ def _getVGstats(vgname):
         stats['physical_utilisation'] = utilisation
         stats['freespace'] = freespace
         return stats
+    except util.TimeoutException:
+        util.SMlog("_getVGstats: VG stats for '%s' timed out after 20 seconds" % vgname)
+        raise xs_errors.XenError('VDILoad', \
+              opterr='VG stats timeout for %s' % vgname)
     except util.CommandException as inst:
         raise xs_errors.XenError('VDILoad', \
               opterr='rvgstats failed error is %d' % inst.code)
@@ -601,7 +624,9 @@ def removeVG(root, vgname):
 
 def resizePV(dev):
     try:
-        cmd_lvm([CMD_PVRESIZE, dev])
+        util.timeout_call(20, cmd_lvm, [CMD_PVRESIZE, dev])
+    except util.TimeoutException:
+        util.SMlog("resizePV: PV resize for '%s' timed out after 20 seconds, non-fatal" % dev)
     except util.CommandException as inst:
         util.SMlog("Failed to grow the PV, non-fatal")
 
