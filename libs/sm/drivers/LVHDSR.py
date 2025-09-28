@@ -183,6 +183,15 @@ class LVHDSR(SR.SR):
         if self.sm_config.get(self.FLAG_USE_VHD) == "true":
             self.legacyMode = False
 
+        # Check multipath paths before LVM operations
+        if self.mpath == "true":
+            self._update_mpath_paths()
+            if self.mpath_paths == 0:
+                util.SMlog("LVHDSR.load: No active multipath paths, skipping LVM operations")
+                # Don't do LVM operations when no paths available
+                self.mdexists = False
+                return
+
         if lvutil._checkVG(self.vgname):
             if self.isMaster and not self.cmd in ["vdi_attach", "vdi_detach",
                     "vdi_activate", "vdi_deactivate"]:
@@ -197,28 +206,30 @@ class LVHDSR(SR.SR):
             re.compile("^.*[0-9a-f]{8}-(([0-9a-f]{4})-){3}[0-9a-f]{12}.*")
         self.storageVDIs = {}
 
-        vdi = None
-        for key in self.lvmCache.lvs.keys():
-            # if the lvname has a uuid in it
-            type = None
-            if contains_uuid_regex.search(key) is not None:
-                if key.startswith(lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD]):
-                    type = vhdutil.VDI_TYPE_VHD
-                    vdi = key[len(lvhdutil.LV_PREFIX[type]):]
-                elif key.startswith(lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_RAW]):
-                    type = vhdutil.VDI_TYPE_RAW
-                    vdi = key[len(lvhdutil.LV_PREFIX[type]):]
-                else:
-                    continue
+        # Only enumerate VDIs if we have active paths (or not using multipath)
+        if self.mpath != "true" or self.mpath_paths > 0:
+            vdi = None
+            for key in self.lvmCache.lvs.keys():
+                # if the lvname has a uuid in it
+                type = None
+                if contains_uuid_regex.search(key) is not None:
+                    if key.startswith(lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_VHD]):
+                        type = vhdutil.VDI_TYPE_VHD
+                        vdi = key[len(lvhdutil.LV_PREFIX[type]):]
+                    elif key.startswith(lvhdutil.LV_PREFIX[vhdutil.VDI_TYPE_RAW]):
+                        type = vhdutil.VDI_TYPE_RAW
+                        vdi = key[len(lvhdutil.LV_PREFIX[type]):]
+                    else:
+                        continue
 
-            if type is not None:
-                self.storageVDIs[vdi] = type
+                if type is not None:
+                    self.storageVDIs[vdi] = type
 
-        # check if metadata volume exists
-        try:
-            self.mdexists = self.lvmCache.checkLV(self.MDVOLUME_NAME)
-        except:
-            pass
+            # check if metadata volume exists
+            try:
+                self.mdexists = self.lvmCache.checkLV(self.MDVOLUME_NAME)
+            except:
+                pass
 
     def cleanup(self):
         # we don't need to hold the lock to dec refcounts of activated LVs
@@ -655,18 +666,33 @@ class LVHDSR(SR.SR):
                 util.SMlog('sr_scan blocked for non-master')
                 raise xs_errors.XenError('LVMMaster')
 
-            if self._refresh_size():
-                self._expand_size()
-            self.lvmCache.refresh()
-            cbt_vdis = self.lvmCache.getTagged(CBTLOG_TAG)
-            self._loadvdis()
-            stats = lvutil._getVGstats(self.vgname)
-            self.physical_size = stats['physical_size']
-            self.physical_utilisation = stats['physical_utilisation']
+            # Check multipath paths before LVM operations
+            skip_lvm_ops = False
+            if self.mpath == "true":
+                self._update_mpath_paths()
+                if self.mpath_paths == 0:
+                    util.SMlog("LVHDSR.scan: No active multipath paths, skipping LVM operations")
+                    skip_lvm_ops = True
+
+            # Only do LVM operations if paths are available
+            if not skip_lvm_ops:
+                if self._refresh_size():
+                    self._expand_size()
+                self.lvmCache.refresh()
+                cbt_vdis = self.lvmCache.getTagged(CBTLOG_TAG)
+                self._loadvdis()
+                stats = lvutil._getVGstats(self.vgname)
+                self.physical_size = stats['physical_size']
+                self.physical_utilisation = stats['physical_utilisation']
+            else:
+                # Set default values when LVM operations are skipped
+                cbt_vdis = []
+                self.physical_size = 0
+                self.physical_utilisation = 0
 
             # Now check if there are any VDIs in the metadata, which are not in
-            # XAPI
-            if self.mdexists:
+            # XAPI (only if we have active paths for LVM operations)
+            if self.mdexists and not skip_lvm_ops:
                 vdiToSnaps = {}
                 # get VDIs from XAPI
                 vdis = self.session.xenapi.SR.get_VDIs(self.sr_ref)

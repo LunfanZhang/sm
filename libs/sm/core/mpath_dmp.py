@@ -233,6 +233,30 @@ def deactivate():
     util.SMlog("MPATH: multipath deactivated.")
 
 
+def get_active_paths_count(sid):
+    """Get count of active multipath paths for given SCSIid"""
+    try:
+        with Fairlock("devicemapper"):
+            (ret, stdout, stderr) = util.doexec(['/usr/sbin/multipath', '-l', sid])
+
+        if ret != 0 or not stdout:
+            return 0
+
+        # Count active paths by looking for lines with "active" and "running"
+        # This covers: "active ready running", "active undef running", etc.
+        active_paths = 0
+        for line in stdout.split('\n'):
+            # Look for path lines that contain device info (like "sdc 8:32")
+            if 'active' in line and 'running' in line and ('sd' in line or 'nvme' in line):
+                active_paths += 1
+
+        return active_paths
+
+    except Exception as e:
+        util.SMlog(f"get_active_paths_count: Error checking paths for {sid}: {e}")
+        return 0
+
+
 def path(SCSIid):
     if _is_valid_multipath_device(SCSIid) and _is_mpath_daemon_running():
         path = os.path.join(MP_INUSEDIR, SCSIid)

@@ -455,6 +455,7 @@ class SR(object):
 
     def _mpathinit(self):
         self.mpath = "false"
+        self.mpath_paths = 0
         try:
             if 'multipathing' in self.dconf and \
                    'multipathhandle' in self.dconf:
@@ -505,6 +506,14 @@ class SR(object):
                 util.kickpipe_mpathcount()
         except:
             pass
+
+    def _update_mpath_paths(self):
+        """Update multipath paths count"""
+        if self.mpath == "true" and hasattr(self, 'SCSIid'):
+            from sm.core import mpath_dmp
+            self.mpath_paths = mpath_dmp.get_active_paths_count(self.SCSIid)
+        else:
+            self.mpath_paths = 0
 
     def check_dconf(self, key_list, raise_flag=True):
         """ Checks if all keys in 'key_list' exist in 'self.dconf'.

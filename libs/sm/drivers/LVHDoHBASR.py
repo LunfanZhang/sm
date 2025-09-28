@@ -31,6 +31,7 @@ from sm import SR
 from sm import lvutil
 from sm.core import xs_errors
 from sm.core import util
+from sm.core import mpath_dmp
 from sm.core import scsiutil
 from sm.core import mpath_cli
 
@@ -140,6 +141,8 @@ class LVHDoHBASR(LVHDSR.LVHDSR):
         # During a reboot, scan is called ahead of attach, which causes the MGT
         # to point of the wrong device instead of dm-x. Running multipathing will
         # take care of this scenario.
+
+        # Handle multipath operations - these can continue even with some failed paths
         if self.mpath == "true":
             if 'device' not in self.dconf or not os.path.exists(self.dconf['device']):
                 util.SMlog("@@@@@ path does not exists")
@@ -148,6 +151,8 @@ class LVHDoHBASR(LVHDSR.LVHDSR):
                 self._setMultipathableFlag(SCSIid=self.SCSIid)
         else:
                 self._pathrefresh(LVHDoHBASR)
+
+        # Parent scan will handle LVM operations and path checking
         LVHDSR.LVHDSR.scan(self, sr_uuid)
 
     def probe(self):
@@ -179,7 +184,13 @@ class LVHDoHBASR(LVHDSR.LVHDSR):
 
     def detach(self, sr_uuid):
         LVHDSR.LVHDSR.detach(self, sr_uuid)
-        self.mpathmodule.reset(self.SCSIid, explicit_unmap=True)
+
+        # Multipath reset can continue even with failed paths - it's cleanup
+        try:
+            self.mpathmodule.reset(self.SCSIid, explicit_unmap=True)
+        except Exception as e:
+            util.SMlog(f"LVHDoHBASR.detach: multipath reset failed (non-fatal): {e}")
+
         try:
             pbdref = util.find_my_pbd(self.session, self.host_ref, self.sr_ref)
         except:
