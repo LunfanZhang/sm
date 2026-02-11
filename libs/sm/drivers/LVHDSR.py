@@ -1571,6 +1571,16 @@ class LVHDVDI(VDI.VDI):
 
         util.SMlog("Compose done")
 
+    def epoch_begin(self, sr_uuid, vdi_uuid):
+        util.SMlog("LVHDSR.epoch_begin: enabling feature-flush-cache for %s" % vdi_uuid)
+        vdi_ref = self.session.xenapi.VDI.get_by_uuid(vdi_uuid)
+        sm_config = self.session.xenapi.VDI.get_sm_config(vdi_ref)
+        if 'enable-flush-cache' not in sm_config:
+            self.session.xenapi.VDI.add_to_sm_config(vdi_ref, 'enable-flush-cache', 'true')
+            util.SMlog("LVHDSR.epoch_begin: enabled feature-flush-cache for %s" % vdi_uuid)
+        else:
+            util.SMlog("LVHDSR.epoch_begin: feature-flush-cache already set for %s" % vdi_uuid)
+
     def reset_leaf(self, sr_uuid, vdi_uuid):
         util.SMlog("LVHDSR.reset_leaf for %s" % vdi_uuid)
         if self.vdi_type != vhdutil.VDI_TYPE_VHD:
@@ -1584,6 +1594,11 @@ class LVHDVDI(VDI.VDI):
                     "will not reset contents" % self.uuid)
 
         vhdutil.killData(self.path)
+
+    def epoch_end(self, sr_uuid, vdi_uuid):
+        util.SMlog("LVHDSR.epoch_end: removing feature-flush-cache for %s" % vdi_uuid)
+        vdi_ref = self.session.xenapi.VDI.get_by_uuid(vdi_uuid)
+        self.session.xenapi.VDI.remove_from_sm_config(vdi_ref, 'enable-flush-cache')
 
     def _attach(self):
         self._chainSetActive(True, True, True)

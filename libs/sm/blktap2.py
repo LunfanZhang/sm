@@ -372,6 +372,8 @@ class TapCtl(object):
             args.append("-D")
         if options.get('cbtlog'):
             args.extend(['-C', options['cbtlog']])
+        if options.get('enable_flush_cache'):
+            args.append('-F')
         if options.get('key_hash'):
             key_hash = options['key_hash']
             vdi_uuid = options['vdi_uuid']
@@ -1492,6 +1494,10 @@ class VDI(object):
                     options['key_hash'] = key_hash
                     options['vdi_uuid'] = vdi_uuid
                     util.SMlog('Using key with hash {} for VDI {}'.format(key_hash, vdi_uuid))
+                # Check if feature-flush-cache should be enabled
+                if sm_config.get('enable-flush-cache') == 'true':
+                    options['enable_flush_cache'] = True
+                    util.SMlog('Enabling feature-flush-cache for VDI {}'.format(vdi_uuid))
             # Activate the physical node
             dev_path = self._activate(sr_uuid, vdi_uuid, options)
 

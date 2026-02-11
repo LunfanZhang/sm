@@ -724,6 +724,14 @@ class ISOVDI(VDI.VDI):
                 self.sm_config['xs-tools-version'] = product_version
                 self.sm_config['xs-tools-build'] = build_number
 
+    def epoch_begin(self, sr_uuid, vdi_uuid):
+        """No-op: ISO VDIs are read-only, no flush-cache needed."""
+        pass
+
+    def epoch_end(self, sr_uuid, vdi_uuid):
+        """No-op: ISO VDIs are read-only, no flush-cache needed."""
+        pass
+
     def detach(self, sr_uuid, vdi_uuid):
         pass
 

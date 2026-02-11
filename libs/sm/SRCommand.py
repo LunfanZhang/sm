@@ -286,6 +286,7 @@ class SRCommand:
                                      caching_params)
 
         elif self.cmd == 'vdi_epoch_begin':
+            target.epoch_begin(self.params['sr_uuid'], self.vdi_uuid)
             if caching_params.get(blktap2.VDI.CONF_KEY_MODE_ON_BOOT) != "reset":
                 return
             if "VDI_RESET_ON_BOOT/2" not in self.driver_info['capabilities']:
@@ -293,7 +294,7 @@ class SRCommand:
             return target.reset_leaf(self.params['sr_uuid'], self.vdi_uuid)
 
         elif self.cmd == 'vdi_epoch_end':
-            return
+            return target.epoch_end(self.params['sr_uuid'], self.vdi_uuid)
 
         elif self.cmd == 'vdi_generate_config':
             return target.generate_config(self.params['sr_uuid'], self.vdi_uuid)
